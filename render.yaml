@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: personal-agent
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.main
