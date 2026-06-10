@@ -34,7 +34,17 @@ def handle_command(command_text: str, user_id: int, username: str):
     args = parts[1] if len(parts) > 1 else ""
 
     if cmd == "/start":
-        return f"Hello {username}! I'm your Personal Agent. Type /today to see your overview."
+        return (
+            f"Hello {username}! I'm your Personal Agent.\n\n"
+            "*Available Commands:*\n"
+            "📅 /today - Daily overview\n"
+            "📝 /tasks - List pending tasks\n"
+            "➕ /addtask <title> - Create task\n"
+            "✅ /done <id> - Complete task\n"
+            "🔥 /addhabit <name> - Create habit\n"
+            "🪵 /log - List & log habits\n"
+            "💡 /addmemory <text> - Save memory"
+        )
 
     if cmd == "/today":
         tasks = task_service.list_tasks(user_id, status='pending')
@@ -110,6 +120,10 @@ def handle_command(command_text: str, user_id: int, username: str):
     return None # Not a recognized command
 
 # --- TELEGRAM WEBHOOK ---
+@app.get("/webhook")
+def webhook_info():
+    return {"message": "Telegram Webhook is active and waiting for POST requests."}
+
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     data = await request.json()
