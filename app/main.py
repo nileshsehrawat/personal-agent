@@ -36,14 +36,24 @@ def handle_command(command_text: str, user_id: int, username: str):
     if cmd == "/start":
         return (
             f"Hello {username}! I'm your Personal Agent.\n\n"
-            "*Available Commands:*\n"
-            "📅 /today - Daily overview\n"
-            "📝 /tasks - List pending tasks\n"
-            "➕ /addtask <title> - Create task\n"
-            "✅ /done <id> - Complete task\n"
-            "🔥 /addhabit <name> - Create habit\n"
-            "🪵 /log - List & log habits\n"
-            "💡 /addmemory <text> - Save memory"
+            "*Commands Index:*\n"
+            "📅 /today - Daily overview\n\n"
+            "*Tasks*\n"
+            "📝 /tasks - List pending\n"
+            "➕ /addtask <title>\n"
+            "✅ /done <id> - Complete\n"
+            "❌ /deltask <id> - Delete\n\n"
+            "*Habits*\n"
+            "🔥 /habits - List habits & streaks\n"
+            "➕ /addhabit <name>\n"
+            "🪵 /log <id> - Mark as done today\n\n"
+            "*Events*\n"
+            "📅 /events - List upcoming\n"
+            "➕ /addevent <title> | <time>\n\n"
+            "*Memories*\n"
+            "💡 /memories - List saved\n"
+            "➕ /addmemory <text>\n"
+            "🗑️ /delmemory <id>"
         )
 
     if cmd == "/today":
@@ -56,7 +66,7 @@ def handle_command(command_text: str, user_id: int, username: str):
         
         summary += "📝 *Tasks*\n"
         if tasks:
-            summary += "\n".join([f"□ {t[2]}" for t in tasks])
+            summary += "\n".join([f"• [{t[0]}] {t[2]}" for t in tasks])
         else:
             summary += "No pending tasks."
         
@@ -71,53 +81,99 @@ def handle_command(command_text: str, user_id: int, username: str):
             habit_list = []
             for h in habits:
                 streak = habit_service.get_streak(h[0])
-                habit_list.append(f"{h[2]}: {streak} days")
+                habit_list.append(f"[{h[0]}] {h[2]}: {streak} days")
             summary += "\n".join(habit_list)
         else:
             summary += "No habits tracked."
 
         summary += "\n\n💡 *Memories*\n"
         if memories:
-            summary += "\n".join([f"• {m[2]}" for m in memories[:3]])
+            summary += "\n".join([f"• [{m[0]}] {m[2]}" for m in memories[:3]])
         else:
             summary += "No memories yet."
             
         return summary
 
+    # --- TASK COMMANDS ---
     if cmd == "/addtask":
         if not args: return "Usage: /addtask <task title>"
         task_id = task_service.create_task(user_id, args)
-        return f"Task added! (ID: {task_id})"
+        return f"✅ Task added! (ID: {task_id})"
 
     if cmd == "/tasks":
         tasks = task_service.list_tasks(user_id, status='pending')
         if not tasks: return "You have no pending tasks."
-        return "*Your Tasks:*\n" + "\n".join([f"{t[0]}. {t[2]}" for t in tasks])
+        return "*Your Tasks:*\n" + "\n".join([f"`{t[0]}`. {t[2]}" for t in tasks])
 
     if cmd == "/done":
-        if not args: return "Usage: /done <task id>"
-        success = task_service.complete_task(int(args))
-        return "Task marked as completed!" if success else "Task not found."
+        if not args: return "Usage: /done <id>"
+        try:
+            success = task_service.complete_task(int(args))
+            return "✅ Task marked as completed!" if success else "❌ Task not found."
+        except ValueError: return "Please provide a valid numeric ID."
 
+    if cmd == "/deltask":
+        if not args: return "Usage: /deltask <id>"
+        try:
+            success = task_service.delete_task(int(args))
+            return "🗑️ Task deleted." if success else "❌ Task not found."
+        except ValueError: return "Please provide a valid numeric ID."
+
+    # --- HABIT COMMANDS ---
     if cmd == "/addhabit":
-        if not args: return "Usage: /addhabit <habit name>"
+        if not args: return "Usage: /addhabit <name>"
         habit_id = habit_service.create_habit(user_id, args)
-        return f"Habit '{args}' created!"
+        return f"🔥 Habit '{args}' created! (ID: {habit_id})"
+
+    if cmd == "/habits":
+        habits = habit_service.list_habits(user_id)
+        if not habits: return "No habits tracked. Use /addhabit"
+        resp = "*Your Habits:*\n"
+        for h in habits:
+            streak = habit_service.get_streak(h[0])
+            resp += f"`{h[0]}`. {h[2]} (Streak: {streak})\n"
+        return resp
 
     if cmd == "/log":
-        habits = habit_service.list_habits(user_id)
-        if not args:
-            if not habits: return "No habits to log. Create one with /addhabit"
-            return "Usage: /log <habit id>\n" + "\n".join([f"{h[0]}: {h[2]}" for h in habits])
-        success = habit_service.log_habit(int(args))
-        return "Habit logged!" if success else "Already logged today or invalid ID."
+        if not args: return "Usage: /log <id>. See /habits for IDs."
+        try:
+            success = habit_service.log_habit(int(args))
+            return "🪵 Habit logged for today!" if success else "❌ Already logged today or invalid ID."
+        except ValueError: return "Please provide a valid numeric ID."
 
+    # --- EVENT COMMANDS ---
+    if cmd == "/addevent":
+        if "|" not in args: return "Usage: /addevent Title | Time (e.g. Gym | 18:00)"
+        try:
+            title, time = [i.strip() for i in args.split("|")]
+            event_id = event_service.create_event(user_id, title, time)
+            return f"📅 Event added! (ID: {event_id})"
+        except: return "Error adding event. Use format: Title | Time"
+
+    if cmd == "/events":
+        events = event_service.list_events(user_id)
+        if not events: return "No events scheduled."
+        return "*Upcoming Events:*\n" + "\n".join([f"• {e[2]} @ {e[3]}" for e in events])
+
+    # --- MEMORY COMMANDS ---
     if cmd == "/addmemory":
         if not args: return "Usage: /addmemory <content>"
-        memory_service.add_memory(user_id, args)
-        return "Memory saved!"
+        mem_id = memory_service.add_memory(user_id, args)
+        return f"💡 Memory saved! (ID: {mem_id})"
 
-    return None # Not a recognized command
+    if cmd == "/memories":
+        mems = memory_service.list_memories(user_id)
+        if not mems: return "No memories saved."
+        return "*Your Memories:*\n" + "\n".join([f"`{m[0]}`. {m[2]}" for m in mems])
+
+    if cmd == "/delmemory":
+        if not args: return "Usage: /delmemory <id>"
+        try:
+            success = memory_service.delete_memory(int(args))
+            return "🗑️ Memory removed." if success else "❌ Memory not found."
+        except ValueError: return "Please provide a valid numeric ID."
+
+    return None
 
 # --- TELEGRAM WEBHOOK ---
 @app.get("/webhook")
@@ -133,18 +189,15 @@ async def telegram_webhook(request: Request):
             chat_id = data["message"]["chat"]["id"]
             username = data["message"]["chat"].get("username", data["message"]["chat"].get("first_name", "User"))
 
-            # Register/Get user using user_service
             user_id = user_service.get_or_create_user(chat_id, username)
 
             if message_text:
-                # 1. Try Command Router first (Phase 2)
                 if message_text.startswith("/"):
                     response = handle_command(message_text, user_id, username)
                     if response:
                         send_message(chat_id, response)
                         return {"ok": True}
 
-                # 2. Fallback to AI (Phase 4)
                 response = ask_llm(message_text)
                 send_message(chat_id, response)
 
@@ -153,7 +206,7 @@ async def telegram_webhook(request: Request):
 
     return {"ok": True}
 
-# --- EXISTING ENDPOINTS ---
+# --- REST API ENDPOINTS ---
 @app.post("/tasks", response_model=int)
 def create_task_endpoint(task: TaskCreate):
     return task_service.create_task(task.user_id, task.title, task.description, task.due_date)
