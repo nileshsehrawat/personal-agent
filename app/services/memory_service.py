@@ -4,18 +4,18 @@ def add_memory(user_id, content, importance=1):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO memories (user_id, content, importance) VALUES (?, ?, ?)",
+        "INSERT INTO memories (user_id, content, importance) VALUES (%s, %s, %s) RETURNING id",
         (user_id, content, importance)
     )
+    memory_id = cursor.fetchone()[0]
     conn.commit()
-    memory_id = cursor.lastrowid
     conn.close()
     return memory_id
 
 def list_memories(user_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM memories WHERE user_id = ? ORDER BY importance DESC, created_at DESC", (user_id,))
+    cursor.execute("SELECT * FROM memories WHERE user_id = %s ORDER BY importance DESC, created_at DESC", (user_id,))
     memories = cursor.fetchall()
     conn.close()
     return memories
@@ -23,8 +23,8 @@ def list_memories(user_id):
 def delete_memory(memory_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+    cursor.execute("DELETE FROM memories WHERE id = %s", (memory_id,))
     conn.commit()
-    changes = conn.total_changes
+    count = cursor.rowcount
     conn.close()
-    return changes > 0
+    return count > 0

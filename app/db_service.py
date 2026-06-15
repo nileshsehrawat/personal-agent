@@ -1,20 +1,28 @@
-import sqlite3
+import psycopg2
 import os
+from app.config import DATABASE_URL
 
-DB_PATH = "personal_agent.db"
+# SQLite implementation (Commented out due to ephemeral storage on Render free tier)
+# import sqlite3
+# DB_PATH = "personal_agent.db"
+# def get_connection():
+#     return sqlite3.connect(DB_PATH)
 
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    # Using Postgres (Neon.tech) for persistent storage
+    return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
+    # NOTE: Postgres uses SERIAL instead of AUTOINCREMENT for PRIMARY KEY
+    
     # Users table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        telegram_id INTEGER UNIQUE NOT NULL,
+        id SERIAL PRIMARY KEY,
+        telegram_id BIGINT UNIQUE NOT NULL,
         username TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -23,7 +31,7 @@ def init_db():
     # Tasks table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         title TEXT NOT NULL,
         description TEXT,
@@ -37,7 +45,7 @@ def init_db():
     # Habits table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS habits (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         frequency TEXT DEFAULT 'daily',
@@ -49,7 +57,7 @@ def init_db():
     # Habit Logs table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS habit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         habit_id INTEGER NOT NULL,
         logged_at DATE DEFAULT CURRENT_DATE,
         FOREIGN KEY (habit_id) REFERENCES habits (id),
@@ -60,7 +68,7 @@ def init_db():
     # Events table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         title TEXT NOT NULL,
         start_time TIMESTAMP,
@@ -74,7 +82,7 @@ def init_db():
     # Memories table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS memories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         content TEXT NOT NULL,
         importance INTEGER DEFAULT 1,
@@ -88,4 +96,4 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
-    print("Database initialized successfully.")
+    print("PostgreSQL Database initialized successfully.")

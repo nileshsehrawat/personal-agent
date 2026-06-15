@@ -8,3 +8,4 @@ python-dotenv==1.2.2
 requests==2.34.2
 starlette==1.2.1
 uvicorn==0.49.0
+psycopg2-binary
