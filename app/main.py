@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.llm_service import ask_llm
 from app.telegram_service import send_message
 from app.db_service import init_db
+from app.agent import run_agent
 from app.services import (
     user_service,
     task_service,
@@ -198,7 +199,8 @@ async def telegram_webhook(request: Request):
                         send_message(chat_id, response)
                         return {"ok": True}
 
-                response = ask_llm(message_text)
+                # Route normal conversational text directly to the AI Agent
+                response = run_agent(message_text, user_id)
                 send_message(chat_id, response)
 
     except Exception as e:
@@ -279,4 +281,9 @@ def delete_memory_endpoint(memory_id: int):
 @app.get("/test")
 def test():
     answer = ask_llm("Say hello in one sentence")
+    return {"response": answer}
+
+@app.get("/agent_test")
+def agent_test(message: str, user_id: int):
+    answer = run_agent(message, user_id)
     return {"response": answer}
