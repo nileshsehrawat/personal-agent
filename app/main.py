@@ -10,7 +10,8 @@ from app.services import (
     task_service,
     habit_service,
     event_service,
-    memory_service
+    memory_service,
+    chat_history_service
 )
 from app.schemas import (
     TaskCreate, TaskResponse,
@@ -35,6 +36,7 @@ def handle_command(command_text: str, user_id: int, username: str):
     args = parts[1] if len(parts) > 1 else ""
 
     if cmd == "/start":
+        chat_history_service.clear_chat_history(user_id)
         return (
             f"Hello {username}! I'm your Personal Agent.\n\n"
             "*Commands Index:*\n"

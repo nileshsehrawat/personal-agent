@@ -5,6 +5,12 @@ from app.llm_service import client
 from app.agent.registry import registry
 from app.agent.executor import execute_tool
 from app.agent.prompts import get_system_prompt
+from app.services import (
+    task_service,
+    event_service,
+    memory_service,
+    chat_history_service
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,19 +67,53 @@ def run_agent(user_message: str, user_id: int, history: Optional[List[Dict[str, 
     Returns:
         The final response text from the agent.
     """
-    # 1. Prepare messages with system prompt
+    # 1. Load conversation history if not explicitly provided
+    if history is None:
+        try:
+            history = chat_history_service.get_chat_history(user_id, limit=10)
+        except Exception as e:
+            logger.error(f"Error loading chat history: {e}")
+            history = []
+
+    # 2. Retrieve user context for system prompt injection
+    try:
+        memories = memory_service.list_memories(user_id)
+    except Exception as e:
+        logger.error(f"Error listing memories for context: {e}")
+        memories = None
+        
+    try:
+        tasks = task_service.list_tasks(user_id, status='pending')
+    except Exception as e:
+        logger.error(f"Error listing tasks for context: {e}")
+        tasks = None
+        
+    try:
+        events = event_service.upcoming_events(user_id, limit=5)
+    except Exception as e:
+        logger.error(f"Error listing events for context: {e}")
+        events = None
+
+    # 3. Prepare messages with dynamic system prompt
+    system_prompt = get_system_prompt(
+        current_time=None,
+        memories=memories,
+        tasks=tasks,
+        events=events
+    )
+    
     messages = [
-        {"role": "system", "content": get_system_prompt()}
+        {"role": "system", "content": system_prompt}
     ]
     
-    # 2. Add history if provided
+    # 4. Add history
     if history:
         messages.extend(history)
         
-    # 3. Add current user message
+    # 5. Add current user message
     messages.append({"role": "user", "content": user_message})
     
-    # 4. Get available tools dynamically
+    # 6. Get available tools dynamically
     tools = get_relevant_tools(user_message)
     tool_args = {"tools": tools} if tools else {}
     
@@ -99,7 +139,15 @@ def run_agent(user_message: str, user_id: int, history: Optional[List[Dict[str, 
             # If model didn't call any tools, this is the final answer
             if not tool_calls:
                 logger.info("Agent execution completed with final text response.")
-                return assistant_message.content or ""
+                final_response = assistant_message.content or ""
+                
+                try:
+                    chat_history_service.add_chat_message(user_id, "user", user_message)
+                    chat_history_service.add_chat_message(user_id, "assistant", final_response)
+                except Exception as history_err:
+                    logger.error(f"Error saving chat message to history: {history_err}")
+                    
+                return final_response
                 
             # If tool calls are requested, we must append the assistant message (with tool calls) to context
             assistant_msg_dict = {
